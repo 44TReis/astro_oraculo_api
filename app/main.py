@@ -8,7 +8,6 @@ import pytz
 app = FastAPI(title="Astro Oraculo API")
 api = app
 
-
 # Set path to Swiss ephemeris files from environment variable if provided
 ephe_path = os.getenv("EPHE_PATH")
 if ephe_path:
@@ -16,16 +15,15 @@ if ephe_path:
 
 @app.get("/")
 def root():
-    """
-    Root endpoint to confirm the API is running.
-    """
+    """Root endpoint to confirm the API is running."""
     return {"message": "Astro oráculo API is running"}
 
 @app.get("/transits/daily")
 def daily_transits(date: str = None, time: str = "12:00", zone: str = "UTC"):
-         """Return planetary positions for a given date and time."""
+    """Return planetary positions for a given date and time."""
+    try:
+        # If date not provided, use current date in given timezone
         if date is None:
-            # Get current date in the given timezone
             tz = pytz.timezone(zone)
             now = datetime.datetime.now(tz)
             date = now.strftime("%Y-%m-%d")
@@ -80,6 +78,7 @@ def daily_transits(date: str = None, time: str = "12:00", zone: str = "UTC"):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@app.get("/natal")
 def natal_chart():
     """
     Placeholder endpoint for natal chart calculations.
