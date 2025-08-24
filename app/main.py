@@ -30,11 +30,63 @@ def daily_transits(date: str = None, time: str = "12:00", zone: str = "UTC"):
         date (str): Date in YYYY-MM-DD format. Defaults to today (UTC).
         time (str): Time in HH:MM format. Defaults to 12:00.
         zone (str): Time zone, e.g. "UTC" or "America/Argentina/Buenos_Aires".
-    """
-    # TODO: implement computation using Swiss Ephemeris
-    return {"message": "daily transits endpoint placeholder", "date": date, "time": time, "zone": zone}
+        """
+        if date is None:
+            # Get current date in the given timezone
+            tz = pytz.timezone(zone)
+            now = datetime.datetime.now(tz)
+            date = now.strftime("%Y-%m-%d")
 
-@app.post("/natal")
+        # Parse the input date and time
+        dt = datetime.datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
+        # Localize to the specified timezone
+        tz = pytz.timezone(zone)
+        dt_local = tz.localize(dt)
+        # Convert to UTC for Swiss Ephemeris
+        dt_utc = dt_local.astimezone(pytz.utc)
+        # Calculate Julian day
+        jd = swe.julday(dt_utc.year, dt_utc.month, dt_utc.day,
+                        dt_utc.hour + dt_utc.minute/60.0 + dt_utc.second/3600.0)
+
+        # Define planets to calculate
+        planet_ids = {
+            "Sun": swe.SUN,
+            "Moon": swe.MOON,
+            "Mercury": swe.MERCURY,
+            "Venus": swe.VENUS,
+            "Mars": swe.MARS,
+            "Jupiter": swe.JUPITER,
+            "Saturn": swe.SATURN,
+            "Uranus": swe.URANUS,
+            "Neptune": swe.NEPTUNE,
+            "Pluto": swe.PLUTO
+        }
+        # Names of zodiac signs
+        signs = [
+            "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
+            "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"
+        ]
+        positions = {}
+        for name, pid in planet_ids.items():
+            result, _ = swe.calc_ut(jd, pid)
+            lon = result[0] % 360  # longitude in degrees
+            sign_index = int(lon // 30)
+            deg_in_sign = lon % 30
+            positions[name] = {
+                "longitude": lon,
+                "sign": signs[sign_index],
+                "degree": deg_in_sign
+            }
+
+        return {
+            "date": date,
+            "time": time,
+            "zone": zone,
+            "positions": positions
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 def natal_chart():
     """
     Placeholder endpoint for natal chart calculations.
