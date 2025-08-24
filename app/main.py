@@ -6,6 +6,8 @@ import pytz
 
 # Initialize FastAPI app
 app = FastAPI(title="Astro Oraculo API")
+api = app
+
 
 # Set path to Swiss ephemeris files from environment variable if provided
 ephe_path = os.getenv("EPHE_PATH")
