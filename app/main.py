@@ -23,14 +23,7 @@ def root():
 
 @app.get("/transits/daily")
 def daily_transits(date: str = None, time: str = "12:00", zone: str = "UTC"):
-    """
-    Placeholder endpoint for daily transits. It should return planetary positions
-    and aspects for a given date and time.
-    Parameters:
-        date (str): Date in YYYY-MM-DD format. Defaults to today (UTC).
-        time (str): Time in HH:MM format. Defaults to 12:00.
-        zone (str): Time zone, e.g. "UTC" or "America/Argentina/Buenos_Aires".
-        """
+         """Return planetary positions for a given date and time."""
         if date is None:
             # Get current date in the given timezone
             tz = pytz.timezone(zone)
