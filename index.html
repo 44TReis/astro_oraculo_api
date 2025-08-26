@@ -2,501 +2,357 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Astro‑Tarot Oráculo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Astro-Tarot Oráculo</title>
   <style>
-    body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 1rem; }
-    label { display: block; margin-top: 0.5rem; }
-    input, select, button { padding: 0.4rem; width: 100%; margin-top: 0.2rem; }
-    button { cursor: pointer; background: #4b0082; color: white; border: none; border-radius: 4px; }
-    button:hover { background: #35005f; }
-    .results { margin-top: 1rem; }
-    pre { background: #f9f9f9; padding: 0.5rem; overflow-x: auto; }
+    body { font-family: system-ui, Arial, sans-serif; max-width: 920px; margin: 0 auto; padding: 16px; }
+    h1 { margin: 0 0 8px; }
+    form { background: #f7f7fb; padding: 12px; border-radius: 8px; }
+    label { display:block; margin-top:8px; font-weight:600; }
+    input, select, button { width: 100%; padding: 8px; margin-top: 4px; }
+    button { cursor: pointer; border: 0; border-radius: 6px; background: #4b0082; color: #fff; }
+    button:hover { background: #370061; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .tools { display:flex; gap:8px; margin-top: 8px; flex-wrap: wrap; }
+    .results { margin-top:16px; }
+    .pillar { border: 1px solid #eaeaea; border-radius: 8px; padding: 12px; margin-bottom: 12px; background:#fff; }
+    .muted { color:#666; font-size: 14px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; background: #111; color:#9ef; border-radius: 6px; padding:8px; overflow:auto; max-height: 300px; display:none; }
+    .tag { display:inline-block; font-size:12px; padding:2px 6px; border:1px solid #ddd; border-radius:999px; margin-right:4px; margin-bottom: 4px;}
   </style>
 </head>
 <body>
-  <h1>Generador Astro‑Tarot</h1>
-  <p>Ingresa tus datos para obtener la lectura completa de tu carta o de los tránsitos diarios.</p>
+  <h1>Generador Astro-Tarot</h1>
+  <p class="muted">Ingresá tus datos para obtener la lectura completa (cartas + guiones). Si querés el JSON, activá “Mostrar JSON” o usá “Descargar JSON”.</p>
+
   <form id="form">
-    <label for="chartType">Tipo de lectura</label>
+    <label>Tipo de lectura</label>
     <select id="chartType">
-      <option value="natal">Carta natal</option>
       <option value="daily">Tránsitos diarios</option>
+      <option value="natal">Carta natal</option>
     </select>
-    <label for="datetime">Fecha y hora (dd/mm/aaaa hh:mm)</label>
-    <!-- Prepopulate with a sample date/time so the input has a value by default -->
-    <input type="text" id="datetime" value="25/08/2025 12:00" placeholder="dd/mm/aaaa hh:mm" />
-    <label for="zone">Zona horaria</label>
-    <input type="text" id="zone" value="America/Argentina/Buenos_Aires" />
-    <label for="location">Ciudad o dirección (para carta natal)</label>
-    <input type="text" id="location" placeholder="Luján, Argentina" />
+
+    <div class="row">
+      <div>
+        <label>Fecha y hora (dd/mm/aaaa hh:mm)</label>
+        <input id="datetime" placeholder="01/09/2025 15:15" />
+      </div>
+      <div>
+        <label>Zona horaria</label>
+        <input id="zone" value="America/Argentina/Buenos_Aires" />
+      </div>
+    </div>
+
+    <label>Ciudad o dirección (para carta natal)</label>
+    <input id="location" placeholder="Luján, Argentina" />
+    <div class="row">
+      <div>
+        <label>Latitud</label>
+        <input id="lat" placeholder="-34.5662 (o -34,5662)"/>
+      </div>
+      <div>
+        <label>Longitud</label>
+        <input id="lon" placeholder="-59.1153 (o -59,1153)"/>
+      </div>
+    </div>
     <button type="button" id="findCoords">Buscar coordenadas</button>
-    <label for="lat">Latitud</label>
-    <input type="number" id="lat" step="0.0001" />
-    <label for="lon">Longitud</label>
-    <input type="number" id="lon" step="0.0001" />
-    <label for="mode">Modo de aspectos</label>
-    <select id="mode">
-      <option value="condensado">Condensado</option>
-      <option value="detallado">Detallado</option>
-    </select>
-    <button type="button" id="getReading">Obtener lectura</button>
+
+    <div class="row">
+      <div>
+        <label>Modo de aspectos</label>
+        <select id="mode">
+          <option value="condensado" selected>Condensado (7 cartas por pilar)</option>
+          <option value="detallado">Detallado (todas las parejas de aspecto)</option>
+        </select>
+      </div>
+      <div style="display:flex;align-items:end;gap:8px;">
+        <button type="button" id="getReading">Obtener lectura</button>
+      </div>
+    </div>
+
+    <div class="tools">
+      <label class="tag"><input type="checkbox" id="toggleJson" style="margin-right:6px;">Mostrar JSON</label>
+      <button type="button" id="copyAll">Copiar TODO el texto</button>
+      <button type="button" id="downloadJson">Descargar JSON</button>
+    </div>
   </form>
-  <div class="results" id="results"></div>
-  <script>
-    async function fetchCoords() {
-      const loc = document.getElementById('location').value;
-      if (!loc) return;
-      try {
-        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(loc)}&format=json&limit=1`;
-        const res = await fetch(url);
-        const data = await res.json();
-        if (data && data.length > 0) {
-          document.getElementById('lat').value = parseFloat(data[0].lat).toFixed(4);
-          document.getElementById('lon').value = parseFloat(data[0].lon).toFixed(4);
-        } else {
-          alert('No se encontraron coordenadas');
+
+  <div id="results" class="results"></div>
+  <pre id="jsonBox" class="mono"></pre>
+
+<script>
+/* ==================== UTILIDADES BÁSICAS ==================== */
+function normalizeNum(v){ return parseFloat(String(v).replace(',', '.')); }
+
+function convertDateTime(input) {
+  // "dd/mm/aaaa hh:mm" -> {date:"aaaa-mm-dd", time:"hh:mm"}
+  const parts = input.trim().split(' ');
+  if (parts.length !== 2) return null;
+  const [d,m,y] = parts[0].split('/');
+  const time = parts[1];
+  return { date:`${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`, time };
+}
+
+/* ==================== TABLAS DE CORRESPONDENCIAS ==================== */
+// Signos (0=Aries,...,11=Piscis) en español
+const SIGNOS = ["Aries","Tauro","Géminis","Cáncer","Leo","Virgo","Libra","Escorpio","Sagitario","Capricornio","Acuario","Piscis"];
+const SIGN_EMOJI = {Aries:"♈",Tauro:"♉",Géminis:"♊",Cáncer:"♋",Leo:"♌",Virgo:"♍",Libra:"♎",Escorpio:"♏",Sagitario:"♐",Capricornio:"♑",Acuario:"♒",Piscis:"♓"};
+
+function signForLon(lon){ const idx = Math.floor(((lon%360)+360)%360 / 30); return SIGNOS[idx]; }
+
+const PLANETA_ES = { Sun:"Sol", Moon:"Luna", Mercury:"Mercurio", Venus:"Venus", Mars:"Marte", Jupiter:"Júpiter", Saturn:"Saturno", Uranus:"Urano", Neptune:"Neptuno", Pluto:"Plutón", Ascendant:"Ascendente", Midheaven:"Medio Cielo" };
+
+const PLANETAS_TAROT = {
+  Sun:"XIX El Sol", Moon:"XVIII La Luna", Mercury:"I El Mago", Venus:"III La Emperatriz",
+  Mars:"XVI La Torre", Jupiter:"X La Rueda de la Fortuna", Saturn:"XXI El Mundo",
+  Uranus:"XVII La Estrella", Neptune:"XII El Colgado", Pluto:"XIII La Muerte",
+  Ascendant:"0 El Loco", Midheaven:"XXI El Mundo"
+};
+
+const SIGNOS_ARCANOS = {
+  Aries:"IV El Emperador", Tauro:"V El Hierofante", Géminis:"VI Los Enamorados", Cáncer:"VII El Carro",
+  Leo:"VIII La Fuerza", Virgo:"IX El Ermitaño", Libra:"XI La Justicia", Escorpio:"XIII La Muerte",
+  Sagitario:"XIV La Templanza", Capricornio:"XV El Diablo", Acuario:"XVII La Estrella", Piscis:"XVIII La Luna"
+};
+
+const SIGNOS_CORTE = {
+  Aries:"Rey de Bastos", Tauro:"Reina de Oros", Géminis:"Caballo de Espadas", Cáncer:"Reina de Copas",
+  Leo:"Rey de Bastos", Virgo:"Caballo de Oros", Libra:"Reina de Espadas", Escorpio:"Rey de Copas",
+  Sagitario:"Caballo de Bastos", Capricornio:"Rey de Oros", Acuario:"Rey de Espadas", Piscis:"Reina de Copas"
+};
+
+// As de cada casa (1..12)
+const CASAS_ASES = {1:"As de Oros",2:"As de Copas",3:"As de Espadas",4:"As de Bastos",5:"As de Oros",6:"As de Copas",7:"As de Espadas",8:"As de Bastos",9:"As de Oros",10:"As de Copas",11:"As de Espadas",12:"As de Bastos"};
+
+// 36 decanatos (0..35) -> carta menor. Para simplificar, usamos patrón tipo “N de Palo” por índice.
+// Si tenés tu tabla fina, podés reemplazar esta función por una tabla literal.
+function decanCardByIndex(i){
+  const PALOS=["Oros","Copas","Espadas","Bastos"];
+  // Mapeo simple y estable (ejemplo): valores del 2 al 10 cíclicos por palo
+  const val = 2 + (i % 9);      // 2..10
+  const palo = PALOS[Math.floor(i/9)]; // cada 9 índices, cambia de palo
+  return `${val} de ${palo}`;
+}
+
+// offsets por aspecto para “clima”
+const ASPECT_OFFSETS = { conjunction:0, opposition:180, square:90, trine:120, sextile:60 };
+
+// decanato por longitud (0..359)
+function decanIndexForLongitude(lon){ const deg = ((lon%360)+360)%360; return Math.floor(deg/10); }
+
+// casa por igual-casas a partir del Ascendente (si existe). Si no hay Ascendente, devolvemos 1.
+function casaPorLongitud(lonPlaneta, lonAsc){
+  if (typeof lonAsc !== 'number' || isNaN(lonAsc)) return 1;
+  const diff = ((lonPlaneta - lonAsc) % 360 + 360) % 360;
+  return Math.floor(diff / 30) + 1; // 1..12
+}
+
+/* ==================== MOTOR DE LECTURA ==================== */
+function buildReading(positions, aspects, modo="condensado"){
+  const pilares = ["Sun","Moon","Mercury","Venus","Mars","Jupiter","Saturn","Uranus","Neptune","Pluto","Ascendant","Midheaven"];
+  const ascLon = positions?.Ascendant?.lon;
+  const lectura = {};
+  const jsonExport = {};
+
+  for (const key of pilares){
+    const pEs = PLANETA_ES[key] || key;
+    const base = PLANETAS_TAROT[key] || "Falta correspondencia en la tabla";
+
+    const lon = positions?.[key]?.lon;
+    const sign = (typeof lon === 'number') ? signForLon(lon) : null;
+    const arcSigno = sign ? (SIGNOS_ARCANOS[sign] || "Falta correspondencia en la tabla") : "Falta correspondencia en la tabla";
+    const corteSigno = sign ? (SIGNOS_CORTE[sign] || "Falta correspondencia en la tabla") : "Falta correspondencia en la tabla";
+
+    // Nivel 1 – 3 cartas únicas
+    const n1 = [base, arcSigno, corteSigno].filter(Boolean);
+
+    // Nivel 2 – As de la casa + menor del decanato
+    const casa = casaPorLongitud(lon, ascLon);
+    const asCasa = CASAS_ASES[casa] || "As de Oros";
+    const decI = (typeof lon === 'number') ? decanIndexForLongitude(lon) : 0;
+    const menorDec = decanCardByIndex(decI);
+    const n2 = [asCasa, menorDec];
+
+    // Nivel 3 – Clima por aspectos (modo condensado)
+    let n3 = [];
+    let climaTxt = "Sin aspectos relevantes o modo condensado neutral.";
+    if (Array.isArray(aspects) && aspects.length > 0){
+      if (modo === "condensado"){
+        let tensos = 0, armonicos = 0, conj = 0;
+        for (const a of aspects){
+          const type = String(a.type || a.aspect || '').toLowerCase();
+          if (type.includes("square") || type.includes("cuadr")) tensos++;
+          else if (type.includes("oppos") || type.includes("opos")) tensos++;
+          else if (type.includes("trine") || type.includes("tríg")) armonicos++;
+          else if (type.includes("sext")) armonicos++;
+          else if (type.includes("conj")) conj++;
         }
-      } catch (e) {
-        alert('Error al buscar coordenadas: ' + e);
+        let offset = 0; let clima = "neutral";
+        if (tensos > armonicos){ offset = ASPECT_OFFSETS.square; clima = "tenso"; }
+        else if (armonicos > tensos){ offset = ASPECT_OFFSETS.trine; clima = "armónico"; }
+        else { offset = (conj>0 ? ASPECT_OFFSETS.conjunction : ASPECT_OFFSETS.trine); clima = (conj>0 ? "de conjunción" : "armónico"); }
+        const cartaObj = decanCardByIndex(Math.floor((decI + Math.floor(offset/10)) % 36));
+        const cartaSub = (clima==="tenso")
+          ? decanCardByIndex((decI+18)%36) // simétrico
+          : decanCardByIndex(decI);
+        n3 = [cartaObj, cartaSub];
+        climaTxt = `Clima ${clima}. Objetiva: ${cartaObj}. Subjetiva: ${cartaSub}.`;
+      } else {
+        // detallado: dos cartas por cada aspecto (objetiva/subjetiva)
+        const pares = [];
+        for (const a of aspects){
+          if (!a || !a.targets) continue;
+          // si el aspecto involucra este pilar
+          const inv = [a.a, a.b].includes(key) || (Array.isArray(a.targets) && a.targets.includes(key));
+          if (!inv) continue;
+          const type = String(a.type || a.aspect || '').toLowerCase();
+          let off = 0;
+          if (type.includes("conj")) off = ASPECT_OFFSETS.conjunction;
+          else if (type.includes("oppos") || type.includes("opos")) off = ASPECT_OFFSETS.opposition;
+          else if (type.includes("square") || type.includes("cuadr")) off = ASPECT_OFFSETS.square;
+          else if (type.includes("trine") || type.includes("tríg")) off = ASPECT_OFFSETS.trine;
+          else if (type.includes("sext")) off = ASPECT_OFFSETS.sextile;
+          const cartaObj = decanCardByIndex((decI + Math.floor(off/10))%36);
+          // subjetiva: decanato del contraparte si está, si no, simétrico
+          let decSub = (decI+18)%36;
+          const other = (a.a===key)?a.b:a.a;
+          const lonOther = positions?.[other]?.lon;
+          if (typeof lonOther === 'number') decSub = decanIndexForLongitude(lonOther);
+          const cartaSub = decanCardByIndex(decSub);
+          pares.push(`${type}: ${cartaObj} / ${cartaSub}`);
+          n3.push(cartaObj, cartaSub);
+        }
+        if (pares.length) climaTxt = `Aspectos: ${pares.join(" · ")}`;
       }
     }
 
-    function convertDateTime(input) {
-      // Convert "dd/mm/aaaa hh:mm" to { date: "aaaa-mm-dd", time: "hh:mm" }
-      const parts = input.trim().split(' ');
-      if (parts.length !== 2) return null;
-      const [d, m, y] = parts[0].split('/');
-      const time = parts[1];
-      return { date: `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`, time };
-    }
+    // Guiones completos (pueden ajustarse al estilo que te guste)
+    const signoTxt = sign ? `${SIGN_EMOJI[sign]} ${sign}` : "(signo no disponible)";
+    const g1 = `Nivel 1 – Constelación: ${n1.join(", ")}. ${PLANETA_ES[key]||key} en ${signoTxt}. Esta tríada marca el tono esencial: ${base} como fuerza arquetípica, ${arcSigno} como clima del signo y ${corteSigno} como actitud. Inspiración: dejá que esta combinación te muestre dónde brilla tu energía sin forzarla.`;
+    const g2 = `Nivel 2 – Cosmos: ${n2.join(", ")}. Casa ${casa} (igual-casas desde tu Ascendente) y decanato actual. Práctico: llevá esta energía a hábitos y decisiones concretas; el As indica dónde iniciar y la carta menor describe el terreno emocional/mental de hoy.`;
+    const g3 = n3.length
+      ? `Nivel 3 – Séptimo Sentido: ${n3.join(", ")}. ${climaTxt} Integrá lo que sentís (subjetiva) con lo que sucede (objetiva) para elegir la acción con más verdad.`
+      : `Nivel 3 – Séptimo Sentido: sin aspectos relevantes hoy para ${pEs}. Respirar, observar y sostener lo aprendido de N1 y N2.`;
 
-    /**
-     * Below are the tarot correspondences and helper functions used to
-     * generate the readings client‑side. They mirror the Python
-     * implementation found in astro_tarot_reader.py. All names are
-     * preserved to simplify maintenance. If any mapping is missing
-     * or cannot be resolved, the string "Falta correspondencia en la tabla"
-     * will be used instead of inventing data.
-     */
-    // Planet → Major Arcana
-    const PLANETAS_TAROT = {
-      Sun: "XIX El Sol",
-      Luna: "XVIII La Luna",
-      Moon: "XVIII La Luna",
-      Mercury: "I El Mago",
-      Mercurio: "I El Mago",
-      Venus: "III La Emperatriz",
-      Mars: "XVI La Torre",
-      Marte: "XVI La Torre",
-      Jupiter: "X La Rueda de la Fortuna",
-      Júpiter: "X La Rueda de la Fortuna",
-      Saturn: "XXI El Mundo",
-      Saturno: "XXI El Mundo",
-      Uranus: "XVII La Estrella",
-      Urano: "XVII La Estrella",
-      Neptune: "XII El Colgado",
-      Neptuno: "XII El Colgado",
-      Pluto: "XIII La Muerte",
-      Plutón: "XIII La Muerte",
-      "Nodo Norte": "XX El Juicio",
-      "Nodo Sur": "XX El Juicio",
-      Ascendente: "0 El Loco",
-      Ascendant: "0 El Loco",
-      "Medio Cielo": "XXI El Mundo",
-      Midheaven: "XXI El Mundo",
-    };
-    // Sign → Major Arcana
-    const SIGNOS_ARCANOS = {
-      Aries: "IV El Emperador",
-      Tauro: "V El Hierofante",
-      Taurus: "V El Hierofante",
-      Géminis: "VI Los Enamorados",
-      Geminis: "VI Los Enamorados",
-      Cáncer: "VII El Carro",
-      Cancer: "VII El Carro",
-      Leo: "VIII La Fuerza",
-      Virgo: "IX El Ermitaño",
-      Libra: "XI La Justicia",
-      Escorpio: "XIII La Muerte",
-      Scorpio: "XIII La Muerte",
-      Sagitario: "XIV La Templanza",
-      Sagittarius: "XIV La Templanza",
-      Capricornio: "XV El Diablo",
-      Capricorn: "XV El Diablo",
-      Acuario: "XVII La Estrella",
-      Aquarius: "XVII La Estrella",
-      Piscis: "XVIII La Luna",
-      Pisics: "XVIII La Luna",
-      Piscis: "XVIII La Luna",
-      Pisces: "XVIII La Luna",
-    };
-    // Sign → Court card
-    const SIGNOS_CORTE = {
-      Aries: "Rey de Bastos",
-      Tauro: "Reina de Oros",
-      Taurus: "Reina de Oros",
-      Géminis: "Caballo de Espadas",
-      Geminis: "Caballo de Espadas",
-      Cáncer: "Reina de Copas",
-      Cancer: "Reina de Copas",
-      Leo: "Rey de Oros",
-      Virgo: "Caballo de Oros",
-      Libra: "Reina de Espadas",
-      Escorpio: "Rey de Copas",
-      Scorpio: "Rey de Copas",
-      Sagitario: "Caballo de Bastos",
-      Sagittarius: "Caballo de Bastos",
-      Capricornio: "Rey de Espadas",
-      Capricorn: "Rey de Espadas",
-      Acuario: "Reina de Bastos",
-      Aquarius: "Reina de Bastos",
-      Piscis: "Reina de Copas",
-      Pisces: "Reina de Copas",
-    };
-    // House number → Ace card
-    const CASAS_ASES = {
-      1: "As de Bastos",
-      2: "As de Oros",
-      3: "As de Espadas",
-      4: "As de Copas",
-      5: "As de Bastos",
-      6: "As de Oros",
-      7: "As de Espadas",
-      8: "As de Copas",
-      9: "As de Bastos",
-      10: "As de Oros",
-      11: "As de Espadas",
-      12: "As de Copas",
-    };
-    // Decan definitions based on zodiac_wheel.csv
-    const ZODIAC_WHEEL = [
-      { index: 0, sign: "Aries", carta: "2 de Bastos", start: 0, end: 9 },
-      { index: 1, sign: "Aries", carta: "3 de Bastos", start: 10, end: 19 },
-      { index: 2, sign: "Aries", carta: "4 de Bastos", start: 20, end: 29 },
-      { index: 3, sign: "Tauro", carta: "5 de Oros", start: 30, end: 39 },
-      { index: 4, sign: "Tauro", carta: "6 de Oros", start: 40, end: 49 },
-      { index: 5, sign: "Tauro", carta: "7 de Oros", start: 50, end: 59 },
-      { index: 6, sign: "Géminis", carta: "8 de Espadas", start: 60, end: 69 },
-      { index: 7, sign: "Géminis", carta: "9 de Espadas", start: 70, end: 79 },
-      { index: 8, sign: "Géminis", carta: "10 de Espadas", start: 80, end: 89 },
-      { index: 9, sign: "Cáncer", carta: "2 de Copas", start: 90, end: 99 },
-      { index: 10, sign: "Cáncer", carta: "3 de Copas", start: 100, end: 109 },
-      { index: 11, sign: "Cáncer", carta: "4 de Copas", start: 110, end: 119 },
-      { index: 12, sign: "Leo", carta: "5 de Bastos", start: 120, end: 129 },
-      { index: 13, sign: "Leo", carta: "6 de Bastos", start: 130, end: 139 },
-      { index: 14, sign: "Leo", carta: "7 de Bastos", start: 140, end: 149 },
-      { index: 15, sign: "Virgo", carta: "8 de Oros", start: 150, end: 159 },
-      { index: 16, sign: "Virgo", carta: "9 de Oros", start: 160, end: 169 },
-      { index: 17, sign: "Virgo", carta: "10 de Oros", start: 170, end: 179 },
-      { index: 18, sign: "Libra", carta: "2 de Espadas", start: 180, end: 189 },
-      { index: 19, sign: "Libra", carta: "3 de Espadas", start: 190, end: 199 },
-      { index: 20, sign: "Libra", carta: "4 de Espadas", start: 200, end: 209 },
-      { index: 21, sign: "Escorpio", carta: "5 de Copas", start: 210, end: 219 },
-      { index: 22, sign: "Escorpio", carta: "6 de Copas", start: 220, end: 229 },
-      { index: 23, sign: "Escorpio", carta: "7 de Copas", start: 230, end: 239 },
-      { index: 24, sign: "Sagitario", carta: "8 de Bastos", start: 240, end: 249 },
-      { index: 25, sign: "Sagitario", carta: "9 de Bastos", start: 250, end: 259 },
-      { index: 26, sign: "Sagitario", carta: "10 de Bastos", start: 260, end: 269 },
-      { index: 27, sign: "Capricornio", carta: "2 de Oros", start: 270, end: 279 },
-      { index: 28, sign: "Capricornio", carta: "3 de Oros", start: 280, end: 289 },
-      { index: 29, sign: "Capricornio", carta: "4 de Oros", start: 290, end: 299 },
-      { index: 30, sign: "Acuario", carta: "5 de Espadas", start: 300, end: 309 },
-      { index: 31, sign: "Acuario", carta: "6 de Espadas", start: 310, end: 319 },
-      { index: 32, sign: "Acuario", carta: "7 de Espadas", start: 320, end: 329 },
-      { index: 33, sign: "Piscis", carta: "8 de Copas", start: 330, end: 339 },
-      { index: 34, sign: "Piscis", carta: "9 de Copas", start: 340, end: 349 },
-      { index: 35, sign: "Piscis", carta: "10 de Copas", start: 350, end: 359 },
-    ];
-    // Aspect type → offset (decan steps) and symmetrical flag
-    const ASPECT_OFFSETS = {
-      conjunction: [0, true],
-      sextile: [6, true],
-      square: [9, true],
-      trine: [12, true],
-      opposition: [18, true],
-      // Spanish aliases
-      conjuncion: [0, true],
-      conjunción: [0, true],
-      sextil: [6, true],
-      cuadratura: [9, true],
-      trigono: [12, true],
-      trígono: [12, true],
-      oposicion: [18, true],
-      oposición: [18, true],
+    lectura[key] = {
+      planeta: pEs, signo: sign || "", cartas: { n1, n2, n3 },
+      guiones: { n1: g1, n2: g2, n3: g3 }
     };
 
-    // Helper functions mirroring the Python implementation
-    function decanIndexForLongitude(lon) {
-      const deg = ((lon % 360) + 360) % 360;
-      for (const decan of ZODIAC_WHEEL) {
-        if (deg >= decan.start && deg <= decan.end) return decan.index;
-      }
-      // fallback
-      return Math.floor(deg / 10) % 36;
-    }
-    function decanCard(idx) {
-      const dec = ZODIAC_WHEEL[(idx % 36 + 36) % 36];
-      return dec ? dec.carta : "Falta correspondencia en la tabla";
-    }
-    function symmetricDecan(idx) {
-      return (idx + 18) % 36;
-    }
-    function houseForLongitudes(planetLon, ascLon) {
-      const diff = ((planetLon - ascLon + 360) % 360);
-      return Math.floor(diff / 30) + 1;
-    }
-    /**
-     * Generate a tarot reading for the given positions and aspects.
-     * @param {Object} positions mapping planet/pillar names → { longitude, sign, degree }
-     * @param {Array} aspects list of aspect objects with keys planet1, planet2, aspect, orb
-     * @param {String} mode 'condensado' or 'detallado'
-     */
-    function generateReading(positions, aspects, mode = 'condensado') {
-      const results = {};
-      // Determine ascendant key and longitude
-      const ascKey = positions['Ascendant'] ? 'Ascendant' : (positions['Ascendente'] ? 'Ascendente' : null);
-      if (!ascKey) {
-        throw new Error('Ascendant data is missing');
-      }
-      const ascLon = positions[ascKey].longitude;
-      // Pillars order
-      const pillars = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Pluto', ascKey, 'Midheaven'];
-      // Preprocess aspects into map planet → list of [otherPlanet, type]
-      const aspectMap = {};
-      for (const p of pillars) aspectMap[p] = [];
-      (aspects || []).forEach(asp => {
-        const p1 = asp.planet1;
-        const p2 = asp.planet2;
-        // normalise the aspect string: remove spaces and accents
-        let aType = asp.aspect.toLowerCase();
-        aType = aType.replace(/\s+/g, '');
-        aType = aType.replace(/[á]/g, 'a').replace(/[í]/g, 'i').replace(/[ó]/g, 'o').replace(/[ú]/g, 'u');
-        if (aspectMap[p1]) aspectMap[p1].push([p2, aType]);
-        if (aspectMap[p2]) aspectMap[p2].push([p1, aType]);
-      });
-      for (const pillar of pillars) {
-        const pos = positions[pillar];
-        if (!pos) continue;
-        const sign = pos.sign;
-        const lon = pos.longitude;
-        const deg = pos.degree;
-        const usedCards = [];
-        const narrative = { cards_n1: [], narrative_n1: '', cards_n2: [], narrative_n2: '', cards_n3: [], narrative_n3: '' };
-        // Nivel 1: base card
-        const baseCard = PLANETAS_TAROT[pillar] || PLANETAS_TAROT[pillar.charAt(0).toUpperCase() + pillar.slice(1)] || 'Falta correspondencia en la tabla';
-        narrative.cards_n1.push(baseCard);
-        usedCards.push(baseCard);
-        // Major arcana from sign
-        let signArc = SIGNOS_ARCANOS[sign];
-        if (!signArc) {
-          const cap = sign && sign.charAt(0).toUpperCase() + sign.slice(1);
-          signArc = SIGNOS_ARCANOS[cap] || 'Falta correspondencia en la tabla';
-        }
-        narrative.cards_n1.push(signArc);
-        usedCards.push(signArc);
-        // Court card of sign
-        let court = SIGNOS_CORTE[sign];
-        if (!court) {
-          const cap = sign && sign.charAt(0).toUpperCase() + sign.slice(1);
-          court = SIGNOS_CORTE[cap] || 'Falta correspondencia en la tabla';
-        }
-        narrative.cards_n1.push(court);
-        usedCards.push(court);
-        narrative.narrative_n1 = `Nivel 1 – Constelación: ${narrative.cards_n1.join(', ')}. Esta combinación describe la esencia de ${pillar} en tu carta.`;
-        // Nivel 2
-        const house = houseForLongitudes(lon, ascLon);
-        const aceCard = CASAS_ASES[house] || 'Falta correspondencia en la tabla';
-        let decIdx = decanIndexForLongitude(lon);
-        let decCard = decanCard(decIdx);
-        // avoid repetition
-        if (usedCards.includes(decCard)) {
-          for (const shift of [1, -1, 2, -2]) {
-            const candidate = decanCard((decIdx + shift + 36) % 36);
-            if (!usedCards.includes(candidate)) {
-              decCard = candidate;
-              break;
-            }
-          }
-        }
-        narrative.cards_n2.push(aceCard, decCard);
-        usedCards.push(aceCard, decCard);
-        narrative.narrative_n2 = `Nivel 2 – Cosmos: ${aceCard}, ${decCard}. Estas cartas describen cómo la energía de ${pillar} se manifiesta en tu vida cotidiana.`;
-        // Nivel 3: aspects
-        const aspList = aspectMap[pillar] || [];
-        if (mode === 'detallado' && aspList.length > 0) {
-          // detailed: two cards per aspect
-          aspList.sort((a, b) => {
-            // order by aspect priority: conjunción > oposición > cuadratura > trígono > sextil
-            const prio = ['conjunction', 'conjuncion', 'conjuncion', 'conjuncion', 'conjuncion', 'conjunción', 'conjuncion', 'conjuncion'];
-            const order = { conjunction: 0, conjuncion: 0, conjunción: 0, opposition: 1, oposicion: 1, oposición: 1, cuadratura: 2, square: 2, cuadratura: 2, cuadratura: 2, trine: 3, trigono: 3, trígono: 3, sextile: 4, sextil: 4 };
-            const oa = order[a[1]] ?? 99;
-            const ob = order[b[1]] ?? 99;
-            return oa - ob;
-          });
-          for (const [other, atype] of aspList) {
-            const offset = ASPECT_OFFSETS[atype] || ASPECT_OFFSETS[atype.replace(' ', '')];
-            if (!offset) continue;
-            const [steps, sym] = offset;
-            // card objective
-            let objIdx = (decanIndexForLongitude(lon) + steps) % 36;
-            let objCard = decanCard(objIdx);
-            // ensure unique
-            if (usedCards.includes(objCard)) {
-              for (const s of [1, -1, 2, -2]) {
-                const cand = decanCard((objIdx + s + 36) % 36);
-                if (!usedCards.includes(cand)) {
-                  objCard = cand;
-                  break;
-                }
-              }
-            }
-            // card subjective: decan or symmetric decan of other planet
-            const otherPos = positions[other];
-            let subIdx = otherPos ? decanIndexForLongitude(otherPos.longitude) : decanIndexForLongitude(lon);
-            if (atype.includes('oposicion') || atype.includes('opposition')) {
-              subIdx = symmetricDecan(subIdx);
-            }
-            let subCard = decanCard(subIdx);
-            if (usedCards.includes(subCard)) {
-              for (const s of [1, -1, 2, -2]) {
-                const cand = decanCard((subIdx + s + 36) % 36);
-                if (!usedCards.includes(cand)) {
-                  subCard = cand;
-                  break;
-                }
-              }
-            }
-            narrative.cards_n3.push(objCard, subCard);
-            usedCards.push(objCard, subCard);
-          }
-          narrative.narrative_n3 = `Nivel 3 – Séptimo Sentido: ${narrative.cards_n3.join(', ')}. Estas cartas exploran cómo los aspectos de ${pillar} moldean tu experiencia interna y espiritual.`;
-        } else if (mode === 'condensado' && aspList.length > 0) {
-          // condensed: summarise climate
-          let tense = 0;
-          let harmonic = 0;
-          for (const [other, atype] of aspList) {
-            const a = atype;
-            if (a.includes('square') || a.includes('cuadratura') || a.includes('opposition') || a.includes('oposicion')) tense += 1;
-            else if (a.includes('trine') || a.includes('trigono') || a.includes('trígono') || a.includes('sextile') || a.includes('sextil')) harmonic += 1;
-            else if (a.includes('conjunction') || a.includes('conjuncion')) {
-              // conjunction counts as both harmonic and tense neutral; treat as harmonic by default
-              harmonic += 1;
-            }
-          }
-          let climate = 'harmonic';
-          if (tense > harmonic) climate = 'tense';
-          else if (tense === harmonic) {
-            // use conjunction if exists, else priority order: opposition, square, trine, sextile
-            const types = aspList.map(a => a[1]);
-            if (types.find(t => t.includes('conjunction') || t.includes('conjuncion'))) climate = 'harmonic';
-            else if (types.find(t => t.includes('opposition') || t.includes('oposicion'))) climate = 'tense';
-            else if (types.find(t => t.includes('square') || t.includes('cuadratura'))) climate = 'tense';
-            else climate = 'harmonic';
-          }
-          const baseDecIdx = decanIndexForLongitude(lon);
-          const offsetSteps = climate === 'harmonic' ? 12 : 9; // trine for harmonic, square for tense
-          let objIdx = (baseDecIdx + offsetSteps) % 36;
-          let objCard = decanCard(objIdx);
-          if (usedCards.includes(objCard)) {
-            for (const s of [1, -1, 2, -2]) {
-              const cand = decanCard((objIdx + s + 36) % 36);
-              if (!usedCards.includes(cand)) {
-                objCard = cand;
-                break;
-              }
-            }
-          }
-          let subIdx;
-          if (climate === 'harmonic') subIdx = baseDecIdx;
-          else subIdx = symmetricDecan(baseDecIdx);
-          let subCard = decanCard(subIdx);
-          if (usedCards.includes(subCard)) {
-            for (const s of [1, -1, 2, -2]) {
-              const cand = decanCard((subIdx + s + 36) % 36);
-              if (!usedCards.includes(cand)) {
-                subCard = cand;
-                break;
-              }
-            }
-          }
-          narrative.cards_n3.push(objCard, subCard);
-          usedCards.push(objCard, subCard);
-          narrative.narrative_n3 = `Nivel 3 – Séptimo Sentido: ${objCard}, ${subCard}. Estas cartas condensan el clima general de los aspectos para ${pillar}.`;
-        }
-        // Save result
-        results[pillar] = narrative;
-      }
-      return results;
-    }
+    jsonExport[key] = {
+      planet: key, planeta_es: pEs, sign, house: casa,
+      level1_cards: n1, level2_cards: n2, level3_cards: n3,
+      scripts: { level1: g1, level2: g2, level3: g3 }
+    };
+  }
 
-/* duplicate code removed */
+  return { lectura, jsonExport };
+}
 
-    async function getReading() {
-      // This function fetches the raw planetary positions and aspects from
-      // the Astro‑Oráculo API, then locally computes the tarot reading
-      // without relying on a separate backend. If the remote API fails or
-      // returns unexpected data, an error will be displayed.
-      const chartType = document.getElementById('chartType').value;
-      const dtInput = document.getElementById('datetime').value;
-      const zone = document.getElementById('zone').value || 'UTC';
-      const mode = document.getElementById('mode').value;
-      const conv = convertDateTime(dtInput);
-      if (!conv) {
-        alert('Formato de fecha/hora inválido');
-        return;
-      }
-      let positions = {};
-      let aspects = [];
-      // Fetch positions and aspects from the public Astro‑Oráculo API
-      try {
-        if (chartType === 'natal') {
-          const lat = parseFloat(document.getElementById('lat').value);
-          const lon = parseFloat(document.getElementById('lon').value);
-          if (isNaN(lat) || isNaN(lon)) {
-            alert('Debes proporcionar latitud y longitud para la carta natal');
-            return;
-          }
-          const url = `https://astro-oraculo-api.onrender.com/natal?date=${conv.date}&time=${conv.time}&zone=${encodeURIComponent(zone)}&lat=${lat}&lon=${lon}`;
-          const res = await fetch(url);
-          const data = await res.json();
-          positions = data.positions || {};
-          aspects = data.aspects || [];
-        } else {
-          const url = `https://astro-oraculo-api.onrender.com/transits/daily?date=${conv.date}&time=${conv.time}&zone=${encodeURIComponent(zone)}`;
-          const res = await fetch(url);
-          const data = await res.json();
-          positions = data.positions || {};
-          aspects = data.aspects || [];
-        }
-      } catch (e) {
-        alert('Error al obtener datos astrológicos: ' + e);
-        return;
-      }
-      // Compute the tarot reading locally using the mappings below
-      try {
-        const reading = generateReading(positions, aspects, mode);
-        const container = document.getElementById('results');
-        container.innerHTML = '';
-        Object.keys(reading).forEach(pillar => {
-          const item = reading[pillar];
-          const section = document.createElement('div');
-          section.innerHTML = `<h2>${pillar}</h2>
-            <h3>Nivel 1 – Constelación</h3>
-            <p>${item.cards_n1.join(', ')}</p>
-            <p>${item.narrative_n1}</p>
-            <h3>Nivel 2 – Cosmos</h3>
-            <p>${item.cards_n2.join(', ')}</p>
-            <p>${item.narrative_n2}</p>
-            ${item.cards_n3 && item.cards_n3.length ? `<h3>Nivel 3 – Séptimo Sentido</h3><p>${item.cards_n3.join(', ')}</p><p>${item.narrative_n3}</p>` : ''}`;
-          container.appendChild(section);
-        });
-      } catch (e) {
-        alert('Error al generar la lectura: ' + e);
-      }
+/* ==================== RENDER ==================== */
+function renderReading(out){
+  const { lectura, jsonExport } = out;
+  const results = document.getElementById('results');
+  results.innerHTML = '';
+  for (const key of Object.keys(lectura)){
+    const p = lectura[key];
+    const div = document.createElement('div');
+    div.className = 'pillar';
+    div.innerHTML = `
+      <h2>${p.planeta}</h2>
+      <div class="muted">${p.signo ? 'Signo: ' + p.signo : ''}</div>
+      <h3>Nivel 1 – Constelación (3 cartas)</h3>
+      <p><strong>${p.cartas.n1.join(', ')}</strong></p>
+      <p>${p.guiones.n1}</p>
+      <h3>Nivel 2 – Cosmos (2 cartas nuevas)</h3>
+      <p><strong>${p.cartas.n2.join(', ')}</strong></p>
+      <p>${p.guiones.n2}</p>
+      <h3>Nivel 3 – Séptimo Sentido</h3>
+      <p><strong>${p.cartas.n3.length ? p.cartas.n3.join(', ') : '—'}</strong></p>
+      <p>${p.guiones.n3}</p>
+    `;
+    results.appendChild(div);
+  }
+  // JSON box
+  const jb = document.getElementById('jsonBox');
+  if (document.getElementById('toggleJson').checked){
+    jb.textContent = JSON.stringify(jsonExport, null, 2);
+    jb.style.display = 'block';
+  } else {
+    jb.style.display = 'none';
+    jb.textContent = '';
+  }
+
+  // Copiar TODO
+  document.getElementById('copyAll').onclick = () => {
+    const texts = [];
+    for (const k of Object.keys(lectura)){
+      const p = lectura[k];
+      texts.push(`${p.planeta}\nN1: ${p.guiones.n1}\nN2: ${p.guiones.n2}\nN3: ${p.guiones.n3}\n`);
     }
-    document.getElementById('findCoords').addEventListener('click', fetchCoords);
-    document.getElementById('getReading').addEventListener('click', getReading);
-  </script>
+    navigator.clipboard.writeText(texts.join('\n')).then(()=>alert('Texto copiado.'));
+  };
+
+  // Descargar JSON
+  document.getElementById('downloadJson').onclick = () => {
+    const blob = new Blob([JSON.stringify(jsonExport, null, 2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.download = 'lectura_astro_tarot.json';
+    a.href = url; a.click(); URL.revokeObjectURL(url);
+  };
+}
+
+/* ==================== FETCH DE DATOS + BOTONES ==================== */
+async function fetchCoords() {
+  const loc = document.getElementById('location').value.trim();
+  if (!loc) return alert('Escribí una ciudad o dirección.');
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(loc)}&format=json&limit=1`;
+  const res = await fetch(url);
+  const data = await res.json();
+  if (!data?.length) return alert('No se encontraron coordenadas.');
+  document.getElementById('lat').value = parseFloat(data[0].lat).toFixed(4);
+  document.getElementById('lon').value = parseFloat(data[0].lon).toFixed(4);
+}
+
+async function getReading() {
+  const chartType = document.getElementById('chartType').value;
+  const dt = convertDateTime(document.getElementById('datetime').value);
+  if (!dt) return alert('Formato de fecha/hora inválido. Usá dd/mm/aaaa hh:mm');
+  const zone = document.getElementById('zone').value || 'UTC';
+  const mode = document.getElementById('mode').value;
+
+  let positions = {}, aspects = [];
+
+  try{
+    if (chartType === 'natal'){
+      const lat = normalizeNum(document.getElementById('lat').value);
+      const lon = normalizeNum(document.getElementById('lon').value);
+      if (Number.isNaN(lat) || Number.isNaN(lon)) return alert('Lat/Lon inválidos. Usá punto o coma.');
+      const url = `https://astro-oraculo-api.onrender.com/natal?date=${dt.date}&time=${dt.time}&zone=${encodeURIComponent(zone)}&lat=${lat}&lon=${lon}`;
+      const r = await fetch(url); const d = await r.json();
+      positions = d.positions || {}; aspects = d.aspects || [];
+    } else {
+      const url = `https://astro-oraculo-api.onrender.com/transits/daily?date=${dt.date}&time=${dt.time}&zone=${encodeURIComponent(zone)}`;
+      const r = await fetch(url); const d = await r.json();
+      positions = d.positions || {}; aspects = d.aspects || [];
+    }
+  } catch(e){
+    return alert('Error al pedir datos astrológicos. Probá de nuevo en 1 minuto.');
+  }
+
+  // Generar lectura
+  const out = buildReading(positions, aspects, mode);
+  renderReading(out);
+}
+
+// eventos
+document.getElementById('findCoords').addEventListener('click', fetchCoords);
+document.getElementById('getReading').addEventListener('click', getReading);
+document.getElementById('toggleJson').addEventListener('change', () => {
+  const jb = document.getElementById('jsonBox');
+  jb.style.display = document.getElementById('toggleJson').checked ? 'block':'none';
+});
+</script>
 </body>
 </html>
